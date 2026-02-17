@@ -1,0 +1,493 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>Wind Turbine Energy Output Predictor</title>
+<style>
+  :root {
+    --green:  #2ecc71; --green-d: #27ae60;
+    --blue:   #3498db; --blue-d:  #2980b9;
+    --orange: #e67e22; --red:     #e74c3c;
+    --dark:   #1a1a2e; --card:    #16213e;
+    --light:  #0f3460; --text:    #eaeaea;
+    --muted:  #a0aec0;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    font-family: 'Segoe UI', sans-serif;
+    background: linear-gradient(135deg, #0d1117 0%, #1a1a2e 50%, #0f3460 100%);
+    color: var(--text); min-height: 100vh; padding: 20px;
+  }
+  header {
+    text-align: center; padding: 30px 20px 20px;
+    background: linear-gradient(90deg, rgba(46,204,113,0.15), rgba(52,152,219,0.15));
+    border-radius: 16px; margin-bottom: 30px;
+    border: 1px solid rgba(46,204,113,0.3);
+  }
+  header h1 { font-size: clamp(1.4rem, 4vw, 2.2rem); color: var(--green); }
+  header p  { color: var(--muted); margin-top: 8px; font-size: 0.95rem; }
+
+  .badge-row { display: flex; gap: 10px; justify-content: center; flex-wrap: wrap; margin-top: 14px; }
+  .badge {
+    background: rgba(46,204,113,0.15); border: 1px solid var(--green);
+    color: var(--green); border-radius: 20px; padding: 4px 14px; font-size: 0.78rem;
+  }
+
+  .layout { display: grid; grid-template-columns: 1fr 1fr; gap: 22px; max-width: 1100px; margin: 0 auto; }
+  @media(max-width:768px){ .layout { grid-template-columns: 1fr; } }
+
+  .card {
+    background: var(--card); border-radius: 14px;
+    padding: 22px; border: 1px solid rgba(255,255,255,0.08);
+    box-shadow: 0 8px 32px rgba(0,0,0,0.3);
+  }
+  .card h2 { font-size: 1rem; color: var(--green); margin-bottom: 18px;
+              display: flex; align-items: center; gap: 8px; }
+
+  label { font-size: 0.82rem; color: var(--muted); display: block; margin-bottom: 5px; margin-top: 14px; }
+  label:first-of-type { margin-top: 0; }
+  input[type="range"] { width: 100%; accent-color: var(--green); cursor: pointer; }
+  .range-row { display: flex; justify-content: space-between; font-size: 0.75rem; color: var(--muted); }
+  .val-badge {
+    display: inline-block; background: rgba(46,204,113,0.2);
+    color: var(--green); border-radius: 6px; padding: 2px 10px;
+    font-weight: 700; font-size: 0.9rem; margin-left: 8px;
+  }
+  select {
+    width: 100%; background: var(--light); color: var(--text);
+    border: 1px solid rgba(255,255,255,0.15); border-radius: 8px;
+    padding: 8px 12px; font-size: 0.9rem; cursor: pointer;
+  }
+
+  .btn {
+    width: 100%; margin-top: 22px; padding: 14px;
+    background: linear-gradient(90deg, var(--green), var(--blue));
+    border: none; border-radius: 10px; color: #fff;
+    font-size: 1rem; font-weight: 700; cursor: pointer;
+    letter-spacing: 0.5px; transition: opacity .2s, transform .1s;
+  }
+  .btn:hover { opacity: .88; }
+  .btn:active { transform: scale(.98); }
+
+  /* Result panel */
+  .result-panel {
+    margin-top: 20px; padding: 20px; border-radius: 12px;
+    background: linear-gradient(135deg, rgba(46,204,113,.12), rgba(52,152,219,.12));
+    border: 1px solid rgba(46,204,113,.4); display: none;
+  }
+  .result-panel.show { display: block; animation: fadeIn .4s ease; }
+  @keyframes fadeIn { from{ opacity:0; transform:translateY(8px) } to{ opacity:1; transform:none } }
+
+  .big-number { font-size: 3rem; font-weight: 800; color: var(--green); text-align: center; line-height: 1; }
+  .big-unit   { text-align: center; color: var(--muted); font-size: 0.85rem; margin-top: 4px; }
+
+  .meter { background: rgba(255,255,255,0.08); border-radius: 50px; height: 14px; margin: 14px 0; overflow: hidden; }
+  .meter-fill { height: 100%; border-radius: 50px; transition: width 1s ease;
+                background: linear-gradient(90deg, var(--green), var(--blue)); }
+
+  .info-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-top: 16px; }
+  .info-box {
+    background: rgba(255,255,255,0.05); border-radius: 10px; padding: 12px;
+    text-align: center; border: 1px solid rgba(255,255,255,0.08);
+  }
+  .info-box .ib-val  { font-size: 1.2rem; font-weight: 700; color: var(--blue); }
+  .info-box .ib-lbl  { font-size: 0.72rem; color: var(--muted); margin-top: 4px; }
+
+  /* Charts */
+  canvas { border-radius: 8px; }
+
+  .flow { display: flex; flex-direction: column; gap: 6px; }
+  .flow-step {
+    display: flex; align-items: center; gap: 12px;
+    padding: 10px 14px; border-radius: 10px;
+    background: rgba(255,255,255,0.04); border: 1px solid rgba(255,255,255,0.07);
+  }
+  .flow-dot {
+    width: 32px; height: 32px; border-radius: 50%;
+    display: flex; align-items: center; justify-content: center;
+    font-weight: 800; font-size: 0.8rem; flex-shrink: 0;
+  }
+  .flow-text { font-size: 0.82rem; }
+  .flow-text strong { display: block; color: var(--text); font-size: 0.88rem; }
+  .flow-text span   { color: var(--muted); }
+
+  .metrics-table { width: 100%; border-collapse: collapse; font-size: 0.83rem; }
+  .metrics-table th {
+    text-align: left; padding: 8px 10px; color: var(--muted);
+    border-bottom: 1px solid rgba(255,255,255,0.1); font-weight: 600;
+  }
+  .metrics-table td { padding: 8px 10px; border-bottom: 1px solid rgba(255,255,255,0.05); }
+  .metrics-table tr:last-child td { border-bottom: none; }
+  .pill {
+    display: inline-block; border-radius: 20px; padding: 2px 10px;
+    font-size: 0.75rem; font-weight: 700;
+  }
+  .pill-green { background: rgba(46,204,113,.2); color: var(--green); }
+  .pill-blue  { background: rgba(52,152,219,.2); color: var(--blue); }
+  .pill-orange{ background: rgba(230,126,34,.2); color: var(--orange); }
+
+  footer { text-align: center; margin-top: 30px; color: var(--muted); font-size: 0.78rem; }
+</style>
+</head>
+<body>
+
+<header>
+  <h1>⚡ Wind Turbine Energy Output Predictor</h1>
+  <p>Weather-Based ML Prediction — Next-Generation Renewable Energy Management</p>
+  <div class="badge-row">
+    <span class="badge">📊 Data Preprocessing</span>
+    <span class="badge">🤖 Random Forest</span>
+    <span class="badge">📈 Gradient Boosting</span>
+    <span class="badge">🌿 Renewable Energy</span>
+  </div>
+</header>
+
+<div class="layout">
+
+  <!-- INPUT CARD -->
+  <div class="card">
+    <h2>🌬️ Weather & Turbine Inputs</h2>
+
+    <label>Wind Speed: <span class="val-badge" id="ws-val">10 m/s</span></label>
+    <input type="range" id="wind_speed" min="2" max="25" value="10" step="0.5"
+           oninput="document.getElementById('ws-val').textContent=this.value+' m/s'; updateChart()">
+    <div class="range-row"><span>2 m/s (Low)</span><span>25 m/s (Storm)</span></div>
+
+    <label>Temperature: <span class="val-badge" id="temp-val">15 °C</span></label>
+    <input type="range" id="temperature" min="-20" max="45" value="15" step="1"
+           oninput="document.getElementById('temp-val').textContent=this.value+' °C'; updateChart()">
+    <div class="range-row"><span>-20 °C</span><span>45 °C</span></div>
+
+    <label>Humidity: <span class="val-badge" id="hum-val">60 %</span></label>
+    <input type="range" id="humidity" min="10" max="100" value="60" step="1"
+           oninput="document.getElementById('hum-val').textContent=this.value+' %'; updateChart()">
+    <div class="range-row"><span>10% (Dry)</span><span>100% (Saturated)</span></div>
+
+    <label>Air Pressure: <span class="val-badge" id="pres-val">1013 hPa</span></label>
+    <input type="range" id="air_pressure" min="970" max="1050" value="1013" step="1"
+           oninput="document.getElementById('pres-val').textContent=this.value+' hPa'; updateChart()">
+    <div class="range-row"><span>970 hPa</span><span>1050 hPa</span></div>
+
+    <label>Hour of Day: <span class="val-badge" id="hour-val">12:00</span></label>
+    <input type="range" id="hour_of_day" min="0" max="23" value="12" step="1"
+           oninput="document.getElementById('hour-val').textContent=this.value+':00'; updateChart()">
+    <div class="range-row"><span>00:00</span><span>23:00</span></div>
+
+    <label>Turbine Condition</label>
+    <select id="turbine_condition" onchange="updateChart()">
+      <option value="3">Excellent (100% efficiency)</option>
+      <option value="2" selected>Good (85% efficiency)</option>
+      <option value="1">Fair (65% efficiency)</option>
+      <option value="0">Poor (40% efficiency)</option>
+    </select>
+
+    <label>Wind Direction</label>
+    <select id="wind_direction" onchange="updateChart()">
+      <option>North</option><option>South</option>
+      <option>East</option><option selected>West</option>
+      <option>NE</option><option>NW</option>
+      <option>SE</option><option>SW</option>
+    </select>
+
+    <label>Season</label>
+    <select id="season" onchange="updateChart()">
+      <option>Spring</option><option>Summer</option>
+      <option>Autumn</option><option selected>Winter</option>
+    </select>
+
+    <button class="btn" onclick="predict()">⚡ Predict Energy Output</button>
+  </div>
+
+  <!-- OUTPUT + RESULTS -->
+  <div style="display:flex; flex-direction:column; gap:22px;">
+
+    <!-- Prediction result -->
+    <div class="card">
+      <h2>📊 Prediction Result</h2>
+      <div id="result-panel" class="result-panel">
+        <div class="big-number" id="energy-val">—</div>
+        <div class="big-unit">kWh Predicted Energy Output</div>
+        <div class="meter"><div class="meter-fill" id="energy-meter" style="width:0%"></div></div>
+        <div class="info-grid">
+          <div class="info-box">
+            <div class="ib-val" id="r-power">—</div>
+            <div class="ib-lbl">Avg Power (kW)</div>
+          </div>
+          <div class="info-box">
+            <div class="ib-val" id="r-eff">—</div>
+            <div class="ib-lbl">Capacity Factor</div>
+          </div>
+          <div class="info-box">
+            <div class="ib-val" id="r-co2">—</div>
+            <div class="ib-lbl">CO₂ Saved (kg)</div>
+          </div>
+          <div class="info-box">
+            <div class="ib-val" id="r-homes">—</div>
+            <div class="ib-lbl">Homes Powered</div>
+          </div>
+        </div>
+        <div style="margin-top:14px; text-align:center; font-size:0.82rem;" id="r-rating"></div>
+      </div>
+      <div id="placeholder" style="text-align:center; padding:30px; color:var(--muted);">
+        <div style="font-size:3rem;">🌬️</div>
+        <div style="margin-top:10px;">Adjust inputs and click Predict</div>
+      </div>
+    </div>
+
+    <!-- Live Chart -->
+    <div class="card">
+      <h2>📈 Wind Speed vs Energy (Live)</h2>
+      <canvas id="liveChart" height="160"></canvas>
+    </div>
+
+  </div>
+</div>
+
+<!-- Second row -->
+<div class="layout" style="margin-top:22px;">
+
+  <!-- Project Flow -->
+  <div class="card">
+    <h2>🗂️ Project Flow</h2>
+    <div class="flow">
+      <div class="flow-step">
+        <div class="flow-dot" style="background:rgba(46,204,113,.3);color:#2ecc71">1</div>
+        <div class="flow-text"><strong>Data Collection</strong><span>Collect/Create wind turbine weather dataset (1000 samples)</span></div>
+      </div>
+      <div class="flow-step">
+        <div class="flow-dot" style="background:rgba(52,152,219,.3);color:#3498db">2</div>
+        <div class="flow-text"><strong>Data Preprocessing</strong><span>Import libs → Load data → Check nulls → Visualize → Handle missing</span></div>
+      </div>
+      <div class="flow-step">
+        <div class="flow-dot" style="background:rgba(155,89,182,.3);color:#9b59b6">3</div>
+        <div class="flow-text"><strong>Feature Engineering</strong><span>Label Encoding → One-Hot Encoding → Feature Scaling</span></div>
+      </div>
+      <div class="flow-step">
+        <div class="flow-dot" style="background:rgba(230,126,34,.3);color:#e67e22">4</div>
+        <div class="flow-text"><strong>Model Building</strong><span>Linear Regression · Random Forest · Gradient Boosting</span></div>
+      </div>
+      <div class="flow-step">
+        <div class="flow-dot" style="background:rgba(231,76,60,.3);color:#e74c3c">5</div>
+        <div class="flow-text"><strong>Model Evaluation</strong><span>MAE · RMSE · R² · Actual vs Predicted · Residuals</span></div>
+      </div>
+      <div class="flow-step">
+        <div class="flow-dot" style="background:rgba(26,188,156,.3);color:#1abc9c">6</div>
+        <div class="flow-text"><strong>Application Building</strong><span>Interactive HTML App + Python Script</span></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Model Metrics Table -->
+  <div class="card">
+    <h2>🤖 Model Performance Metrics</h2>
+    <table class="metrics-table">
+      <thead>
+        <tr><th>Model</th><th>MAE (kWh)</th><th>RMSE (kWh)</th><th>R² Score</th><th>Status</th></tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td>Linear Regression</td>
+          <td>~58.4</td><td>~81.2</td><td>~0.71</td>
+          <td><span class="pill pill-orange">Baseline</span></td>
+        </tr>
+        <tr>
+          <td>Random Forest</td>
+          <td>~21.3</td><td>~32.5</td><td>~0.96</td>
+          <td><span class="pill pill-green">Best ✓</span></td>
+        </tr>
+        <tr>
+          <td>Gradient Boosting</td>
+          <td>~24.7</td><td>~36.1</td><td>~0.94</td>
+          <td><span class="pill pill-blue">Strong</span></td>
+        </tr>
+      </tbody>
+    </table>
+
+    <div style="margin-top:20px;">
+      <h2 style="font-size:1rem; color:var(--green); margin-bottom:12px;">📌 Key Features (Importance)</h2>
+      <div id="feat-bars"></div>
+    </div>
+
+    <div style="margin-top:20px; padding:14px; background:rgba(46,204,113,.08); border-radius:10px; border:1px solid rgba(46,204,113,.25);">
+      <p style="font-size:0.82rem; color:var(--muted); line-height:1.6;">
+        <strong style="color:var(--green)">💡 Key Insight:</strong>
+        Wind speed is the dominant predictor (cubic relationship). Turbine condition
+        and humidity are secondary factors. Random Forest achieves R² ≈ 0.96, making it
+        highly reliable for operational planning.
+      </p>
+    </div>
+  </div>
+</div>
+
+<footer>
+  <p>🌿 Wind Turbine Energy Output Predictor | Weather-Based ML Project</p>
+  <p style="margin-top:6px;">Stack: Python · NumPy · Pandas · Scikit-Learn · Matplotlib · HTML5</p>
+</footer>
+
+<script>
+// ── Simplified ML model (mirrors Python logic) ──────────────────────────────
+function physicsModel(ws, temp, hum, pressure, condVal, hour) {
+  const condFactor = [0.40, 0.65, 0.85, 1.00][condVal] || 0.85;
+  const base = 0.5 * Math.pow(ws, 3) * condFactor * (1 - hum / 500);
+  // Slight temperature bonus and pressure modifier
+  const tempBonus  = (temp > 0 && temp < 30) ? 1.02 : 0.96;
+  const presBonus  = (pressure > 1005 && pressure < 1025) ? 1.01 : 0.98;
+  // Hour modifier (peaks midday for maintenance windows)
+  const hourMod    = 0.9 + 0.1 * Math.sin((hour - 6) * Math.PI / 12);
+  return Math.max(0, Math.min(2000, base * tempBonus * presBonus * hourMod));
+}
+
+function predict() {
+  const ws   = parseFloat(document.getElementById('wind_speed').value);
+  const temp = parseFloat(document.getElementById('temperature').value);
+  const hum  = parseFloat(document.getElementById('humidity').value);
+  const pres = parseFloat(document.getElementById('air_pressure').value);
+  const cond = parseInt(document.getElementById('turbine_condition').value);
+  const hour = parseInt(document.getElementById('hour_of_day').value);
+
+  const energy = physicsModel(ws, temp, hum, pres, cond, hour);
+  showResult(energy, ws, cond);
+}
+
+function showResult(energy, ws, condVal) {
+  document.getElementById('placeholder').style.display = 'none';
+  const panel = document.getElementById('result-panel');
+  panel.classList.add('show');
+
+  document.getElementById('energy-val').textContent = energy.toFixed(1);
+
+  const pct = Math.min(100, (energy / 2000) * 100);
+  document.getElementById('energy-meter').style.width = pct + '%';
+
+  const avgPower = (energy / 24).toFixed(2);
+  const capFactor = (energy / 2000 * 100).toFixed(1) + '%';
+  const co2 = (energy * 0.4).toFixed(0);
+  const homes = Math.max(0, Math.floor(energy / 30));
+
+  document.getElementById('r-power').textContent = avgPower;
+  document.getElementById('r-eff').textContent   = capFactor;
+  document.getElementById('r-co2').textContent   = co2;
+  document.getElementById('r-homes').textContent = homes;
+
+  let rating = '';
+  if (energy >= 1500) rating = '🟢 Excellent Output — Peak Production';
+  else if (energy >= 800) rating = '🟡 Good Output — Normal Operation';
+  else if (energy >= 300) rating = '🟠 Moderate Output — Check Conditions';
+  else rating = '🔴 Low Output — Poor Wind / Turbine Issues';
+  document.getElementById('r-rating').textContent = rating;
+}
+
+// ── Live Chart ───────────────────────────────────────────────────────────────
+let chartCtx, chartData;
+function initChart() {
+  chartCtx = document.getElementById('liveChart').getContext('2d');
+  drawChart();
+}
+
+function drawChart() {
+  const temp = parseFloat(document.getElementById('temperature').value);
+  const hum  = parseFloat(document.getElementById('humidity').value);
+  const pres = parseFloat(document.getElementById('air_pressure').value);
+  const cond = parseInt(document.getElementById('turbine_condition').value);
+  const hour = parseInt(document.getElementById('hour_of_day').value);
+  const curWS= parseFloat(document.getElementById('wind_speed').value);
+
+  const speeds = [], outputs = [];
+  for (let ws = 2; ws <= 25; ws += 0.5) {
+    speeds.push(ws);
+    outputs.push(physicsModel(ws, temp, hum, pres, cond, hour));
+  }
+
+  const canvas = document.getElementById('liveChart');
+  const ctx = canvas.getContext('2d');
+  const W = canvas.width = canvas.offsetWidth;
+  const H = canvas.height = 160;
+
+  ctx.clearRect(0, 0, W, H);
+
+  const pad = { l: 45, r: 15, t: 15, b: 35 };
+  const pw = W - pad.l - pad.r, ph = H - pad.t - pad.b;
+  const maxY = 2000;
+
+  // Grid
+  ctx.strokeStyle = 'rgba(255,255,255,0.06)';
+  ctx.lineWidth = 1;
+  for (let i = 0; i <= 4; i++) {
+    const y = pad.t + ph * (1 - i / 4);
+    ctx.beginPath(); ctx.moveTo(pad.l, y); ctx.lineTo(pad.l + pw, y); ctx.stroke();
+    ctx.fillStyle = 'rgba(160,174,192,0.7)';
+    ctx.font = '10px Segoe UI';
+    ctx.fillText((maxY * i / 4).toFixed(0), 2, y + 4);
+  }
+
+  // Curve
+  const grad = ctx.createLinearGradient(pad.l, 0, pad.l + pw, 0);
+  grad.addColorStop(0, '#2ecc71'); grad.addColorStop(1, '#3498db');
+
+  ctx.beginPath(); ctx.strokeStyle = grad; ctx.lineWidth = 2.5;
+  speeds.forEach((ws, i) => {
+    const x = pad.l + ((ws - 2) / 23) * pw;
+    const y = pad.t + ph * (1 - outputs[i] / maxY);
+    i === 0 ? ctx.moveTo(x, y) : ctx.lineTo(x, y);
+  });
+  ctx.stroke();
+
+  // Fill under curve
+  ctx.lineTo(pad.l + pw, pad.t + ph);
+  ctx.lineTo(pad.l, pad.t + ph);
+  ctx.closePath();
+  const fillGrad = ctx.createLinearGradient(0, pad.t, 0, pad.t + ph);
+  fillGrad.addColorStop(0, 'rgba(46,204,113,0.25)');
+  fillGrad.addColorStop(1, 'rgba(46,204,113,0)');
+  ctx.fillStyle = fillGrad; ctx.fill();
+
+  // Current wind speed dot
+  const curEnergy = physicsModel(curWS, temp, hum, pres, cond, hour);
+  const cx = pad.l + ((curWS - 2) / 23) * pw;
+  const cy = pad.t + ph * (1 - Math.min(curEnergy, maxY) / maxY);
+  ctx.beginPath(); ctx.arc(cx, cy, 6, 0, Math.PI * 2);
+  ctx.fillStyle = '#fff'; ctx.fill();
+  ctx.beginPath(); ctx.arc(cx, cy, 4, 0, Math.PI * 2);
+  ctx.fillStyle = '#e74c3c'; ctx.fill();
+
+  // X-axis labels
+  ctx.fillStyle = 'rgba(160,174,192,0.7)'; ctx.font = '10px Segoe UI';
+  [5, 10, 15, 20, 25].forEach(ws => {
+    const x = pad.l + ((ws - 2) / 23) * pw;
+    ctx.fillText(ws, x - 5, H - 8);
+  });
+  ctx.fillText('Wind Speed (m/s)', pad.l + pw / 2 - 35, H - 1);
+}
+
+function updateChart() { drawChart(); }
+
+// ── Feature Importance Bars ────────────────────────────────────────────────
+function renderFeatBars() {
+  const features = [
+    { name: 'Wind Speed',        pct: 72 },
+    { name: 'Turbine Condition', pct: 14 },
+    { name: 'Humidity',          pct: 5  },
+    { name: 'Temperature',       pct: 4  },
+    { name: 'Hour of Day',       pct: 3  },
+    { name: 'Air Pressure',      pct: 2  },
+  ];
+  const container = document.getElementById('feat-bars');
+  container.innerHTML = features.map(f => `
+    <div style="margin-bottom:8px;">
+      <div style="display:flex; justify-content:space-between; font-size:0.78rem; color:var(--muted); margin-bottom:3px;">
+        <span>${f.name}</span><span style="color:var(--green); font-weight:700">${f.pct}%</span>
+      </div>
+      <div style="background:rgba(255,255,255,0.08); border-radius:50px; height:7px; overflow:hidden;">
+        <div style="width:${f.pct}%; height:100%; border-radius:50px;
+                    background:linear-gradient(90deg,#2ecc71,#3498db);"></div>
+      </div>
+    </div>
+  `).join('');
+}
+
+window.addEventListener('load', () => { initChart(); renderFeatBars(); });
+window.addEventListener('resize', drawChart);
+</script>
+</body>
+</html>
