@@ -1,6 +1,6 @@
 # 🌬️ Wind Turbine Energy Prediction
 
-> **Weather-Based Machine Learning Model** — Predicting wind turbine energy output (kWh) from simulated weather and turbine condition data using Python & Scikit-learn.
+> **Weather-Based Machine Learning Model** — Predicting wind turbine energy output (kWh) from simulated weather and turbine condition data using  Machine Learning & Python 
 
 [![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/Charan-tec/Car-price-prediction-/blob/main/WIND_TURBINE_ENERGY_PREDICTION.ipynb)
 ![Python](https://img.shields.io/badge/Python-3.8+-blue?logo=python&logoColor=white)
